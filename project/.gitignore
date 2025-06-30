@@ -34,3 +34,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documentation files
+*.md
+*.txt
+COMPREHENSIVE_OVERVIEW.txt
+DATABASE_FIX_SUMMARY.md
+DEPLOYMENT.md
+EMAIL_FILTERING_IMPROVEMENTS.md
+EMAIL_INTEGRATION_README.md
+FIREBASE_ANALYSIS.md
+JOB_CLEANUP_GUIDE.md
+TECHNICAL_INTERVIEW_GUIDE.md
