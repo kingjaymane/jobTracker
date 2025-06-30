@@ -8,7 +8,8 @@ import {
   Settings, 
   ChevronLeft,
   ChevronRight,
-  Briefcase 
+  Briefcase,
+  Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,13 +18,14 @@ interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   onAddJob: () => void;
+  activeView?: string;
+  onViewChange?: (view: string) => void;
 }
 
-export function Sidebar({ collapsed, onToggle, onAddJob }: SidebarProps) {
-  const [activeItem, setActiveItem] = useState('dashboard');
-
+export function Sidebar({ collapsed, onToggle, onAddJob, activeView = 'dashboard', onViewChange }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'email', label: 'Email Integration', icon: Mail },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -75,12 +77,12 @@ export function Sidebar({ collapsed, onToggle, onAddJob }: SidebarProps) {
           {menuItems.map((item) => (
             <Button
               key={item.id}
-              variant={activeItem === item.id ? "secondary" : "ghost"}
+              variant={activeView === item.id ? "secondary" : "ghost"}
               className={cn(
                 "w-full justify-start gap-2 h-10",
                 collapsed && "px-2"
               )}
-              onClick={() => setActiveItem(item.id)}
+              onClick={() => onViewChange?.(item.id)}
             >
               <item.icon className="h-4 w-4" />
               {!collapsed && item.label}

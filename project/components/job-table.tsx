@@ -25,14 +25,24 @@ import {
   Trash2, 
   Building2,
   Calendar,
-  StickyNote
+  StickyNote,
+  Edit,
+  Mail
 } from 'lucide-react';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 
 interface JobTableProps {
   jobs: JobApplication[];
   onUpdateStatus: (id: string, status: JobApplication['status']) => void;
   onDelete: (id: string) => void;
+  onEdit: (job: JobApplication) => void;
+  onJobClick?: (job: JobApplication) => void;
 }
 
 const statusConfig = {
@@ -43,7 +53,17 @@ const statusConfig = {
   offered: { color: 'bg-green-500', label: 'Offered' },
 };
 
-export function JobTable({ jobs, onUpdateStatus, onDelete }: JobTableProps) {
+// Generate Gmail URL from message ID or thread ID
+const getGmailUrl = (messageId: string, threadId?: string) => {
+  // Try thread ID first if available, as it's more reliable for Gmail URLs
+  if (threadId) {
+    return `https://mail.google.com/mail/u/0/#inbox/${threadId}`;
+  }
+  // Fallback to message ID
+  return `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
+};
+
+export function JobTable({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick }: JobTableProps) {
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
 
   const StatusBadge = ({ status }: { status: JobApplication['status'] }) => (
@@ -70,24 +90,61 @@ export function JobTable({ jobs, onUpdateStatus, onDelete }: JobTableProps) {
         </TableHeader>
         <TableBody>
           {jobs.map((job) => (
-            <TableRow key={job.id} className="group hover:bg-muted/50 transition-colors">
+            <TableRow 
+              key={job.id} 
+              className="group hover:bg-muted/50 transition-colors cursor-pointer"
+              onClick={() => onJobClick?.(job)}
+            >
               <TableCell>
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                     <Building2 className="h-4 w-4 text-primary" />
                   </div>
                   <div>
-                    <div className="font-medium">{job.companyName}</div>
-                    {job.jobLink && (
-                      <a 
-                        href={job.jobLink} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 mt-1"
-                      >
-                        View Job <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{job.companyName}</span>
+                      {job.autoImported && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Mail className="h-3 w-3 mr-1" />
+                          Auto-imported
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      {job.jobLink && (
+                        <a 
+                          href={job.jobLink} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                        >
+                          View Job <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                      {job.emailMessageId && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <a 
+                                href={getGmailUrl(job.emailMessageId, job.emailThreadId)} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                                title={`View email: ${job.emailSubject || 'Email'}`}
+                              >
+                                View Email <Mail className="h-3 w-3" />
+                              </a>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="flex items-center gap-2">
+                                <Mail className="h-4 w-4" />
+                                <span className="text-sm">View email in Gmail</span>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
                   </div>
                 </div>
               </TableCell>
@@ -148,22 +205,37 @@ export function JobTable({ jobs, onUpdateStatus, onDelete }: JobTableProps) {
               </TableCell>
               
               <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => onDelete(job.id)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8"
+                    onClick={() => onEdit(job)}
+                    title="Edit job"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(job)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => onDelete(job.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableCell>
             </TableRow>
           ))}

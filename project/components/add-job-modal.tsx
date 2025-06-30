@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { JobApplication } from '@/app/page';
+import { formatDateForStorage } from '@/lib/utils';
 import { 
   Dialog,
   DialogContent,
@@ -70,7 +71,7 @@ export function AddJobModal({ open, onOpenChange, onSubmit }: AddJobModalProps) 
         jobTitle: formData.jobTitle.trim(),
         jobLink: formData.jobLink.trim() || undefined,
         status: formData.status,
-        dateApplied: formData.dateApplied.toISOString().split('T')[0],
+        dateApplied: formatDateForStorage(formData.dateApplied),
         notes: formData.notes.trim() || undefined,
         resume: formData.resume.trim() || undefined,
       });

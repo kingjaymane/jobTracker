@@ -1,18 +1,24 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { JobTable } from '@/components/job-table';
 import { KanbanBoard } from '@/components/kanban-board';
 import { AddJobModal } from '@/components/add-job-modal';
+import { EditJobModal } from '@/components/edit-job-modal';
+import { JobDetailsModal } from '@/components/job-details-modal';
 import { Header } from '@/components/header';
 import { FilterBar } from '@/components/filter-bar';
+import { JobDashboard } from '@/components/job-dashboard';
+import { EmailIntegrationDashboard } from '@/components/email-integration-dashboard';
+import { JobCleanupTool } from '@/components/job-cleanup-tool';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
   getJobApplications,
   addJobApplication,
+  updateJobApplication,
   updateJobStatus as updateJobStatusInDb,
   deleteJobApplication,
 } from '@/lib/firestore';
@@ -27,6 +33,15 @@ export interface JobApplication {
   notes?: string;
   companyLogo?: string;
   resume?: string;
+  // Email integration fields
+  emailMessageId?: string;
+  emailThreadId?: string;
+  emailSubject?: string;
+  emailFrom?: string;
+  autoImported?: boolean;
+  confidence?: number;
+  extractedInfo?: any;
+  source?: string;
 }
 
 export interface FilterState {
@@ -120,8 +135,13 @@ export default function Home() {
   const [jobs, setJobs] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<JobApplication | null>(null);
+  const [selectedJob, setSelectedJob] = useState<JobApplication | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [currentView, setCurrentView] = useState('dashboard');
   const [filters, setFilters] = useState<FilterState>({
     search: '',
     status: [],
@@ -130,31 +150,38 @@ export default function Home() {
     sortOrder: 'desc',
   });
 
+  // Function to reload jobs from Firestore (can be called after email scan)
+  const loadJobs = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      console.log('Loading jobs for user:', user.uid);
+      const jobsData = await getJobApplications(user.uid);
+      console.log('Loaded jobs:', jobsData);
+      setJobs(jobsData);
+    } catch (error) {
+      console.error('Failed to load jobs:', error);
+      // For now, start with empty array instead of sample data to test the database
+      setJobs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   // Load jobs from Firestore when user is available
   useEffect(() => {
-    const loadJobs = async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        console.log('Loading jobs for user:', user.uid);
-        const jobsData = await getJobApplications(user.uid);
-        console.log('Loaded jobs:', jobsData);
-        setJobs(jobsData);
-      } catch (error) {
-        console.error('Failed to load jobs:', error);
-        // For now, start with empty array instead of sample data to test the database
-        setJobs([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadJobs();
-  }, [user]);
+  }, [loadJobs]);
+
+  // Refresh jobs function that can be called externally
+  const refreshJobs = async () => {
+    console.log('Refreshing jobs after email scan...');
+    await loadJobs();
+  };
 
   const filteredAndSortedJobs = useMemo(() => {
     let filtered = jobs;
@@ -259,6 +286,41 @@ export default function Home() {
     }
   };
 
+  const editJob = async (id: string, updates: Partial<JobApplication>) => {
+    if (!user) return;
+    
+    try {
+      await updateJobApplication(id, updates, user.uid);
+      setJobs(jobs.map(job => 
+        job.id === id ? { ...job, ...updates } : job
+      ));
+    } catch (error) {
+      console.error('Error updating job:', error);
+      // You might want to show a toast notification here
+    }
+  };
+
+  const handleEditJob = (job: JobApplication) => {
+    setEditingJob(job);
+    setIsEditModalOpen(true);
+  };
+
+  const handleViewJobDetails = (job: JobApplication) => {
+    setSelectedJob(job);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleCloseDetailsModal = () => {
+    setSelectedJob(null);
+    setIsDetailsModalOpen(false);
+  };
+
+  const handleEditFromDetails = (job: JobApplication) => {
+    setIsDetailsModalOpen(false);
+    setEditingJob(job);
+    setIsEditModalOpen(true);
+  };
+
   const clearAllFilters = () => {
     setFilters({
       search: '',
@@ -277,49 +339,100 @@ export default function Home() {
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
             onAddJob={() => setIsAddModalOpen(true)}
+            activeView={currentView}
+            onViewChange={setCurrentView}
           />
           
           <main className={cn(
             "flex-1 transition-all duration-300",
             sidebarCollapsed ? "ml-16" : "ml-64"
           )}>
-            <Header 
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              onAddJob={() => setIsAddModalOpen(true)}
-              jobsCount={filteredAndSortedJobs.length}
-              totalJobsCount={jobs.length}
-              filters={filters}
-              onFiltersChange={setFilters}
-            />
-            
-            <FilterBar
-              filters={filters}
-              onFiltersChange={setFilters}
-              onClearFilters={clearAllFilters}
-              totalJobs={jobs.length}
-              filteredJobs={filteredAndSortedJobs.length}
-            />
-            
-            <div className="p-6">
-              {loading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            {currentView === 'dashboard' && (
+              <>
+                <Header 
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  onAddJob={() => setIsAddModalOpen(true)}
+                  jobsCount={filteredAndSortedJobs.length}
+                  totalJobsCount={jobs.length}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                />
+                
+                <FilterBar
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  onClearFilters={clearAllFilters}
+                  totalJobs={jobs.length}
+                  filteredJobs={filteredAndSortedJobs.length}
+                />
+                
+                <div className="p-6">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <JobDashboard jobs={jobs} />
+                      
+                      {viewMode === 'table' ? (
+                        <JobTable 
+                          jobs={filteredAndSortedJobs}
+                          onUpdateStatus={updateJobStatus}
+                          onDelete={deleteJob}
+                          onEdit={handleEditJob}
+                          onJobClick={handleViewJobDetails}
+                        />
+                      ) : (
+                        <KanbanBoard 
+                          jobs={filteredAndSortedJobs}
+                          onUpdateStatus={updateJobStatus}
+                          onDelete={deleteJob}
+                          onEdit={handleEditJob}
+                          onJobClick={handleViewJobDetails}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
-              ) : viewMode === 'table' ? (
-                <JobTable 
-                  jobs={filteredAndSortedJobs}
-                  onUpdateStatus={updateJobStatus}
-                  onDelete={deleteJob}
-                />
-              ) : (
-                <KanbanBoard 
-                  jobs={filteredAndSortedJobs}
-                  onUpdateStatus={updateJobStatus}
-                  onDelete={deleteJob}
-                />
-              )}
-            </div>
+              </>
+            )}
+
+            {currentView === 'email' && (
+              <div className="p-6">
+                <EmailIntegrationDashboard onJobsUpdated={refreshJobs} />
+              </div>
+            )}
+
+            {currentView === 'calendar' && (
+              <div className="p-6">
+                <div className="text-center py-12">
+                  <h2 className="text-2xl font-semibold mb-4">Calendar View</h2>
+                  <p className="text-muted-foreground">Calendar integration coming soon!</p>
+                </div>
+              </div>
+            )}
+
+            {currentView === 'settings' && (
+              <div className="p-6">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-semibold mb-2">Settings</h2>
+                    <p className="text-muted-foreground mb-6">
+                      Manage your JobTracker preferences and data cleanup tools.
+                    </p>
+                  </div>
+                  
+                  <JobCleanupTool />
+                  
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-medium mb-2">More Settings</h3>
+                    <p className="text-muted-foreground">Additional settings panels coming soon!</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </main>
         </div>
 
@@ -327,6 +440,20 @@ export default function Home() {
           open={isAddModalOpen}
           onOpenChange={setIsAddModalOpen}
           onSubmit={addJob}
+        />
+
+        <EditJobModal
+          open={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          onSubmit={editJob}
+          job={editingJob}
+        />
+
+        <JobDetailsModal
+          job={selectedJob}
+          isOpen={isDetailsModalOpen}
+          onClose={handleCloseDetailsModal}
+          onEdit={handleEditFromDetails}
         />
       </div>
     </ProtectedRoute>

@@ -16,14 +16,24 @@ import {
   Trash2, 
   Building2,
   Calendar,
-  StickyNote
+  StickyNote,
+  Edit,
+  Mail
 } from 'lucide-react';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { format } from 'date-fns';
 
 interface KanbanBoardProps {
   jobs: JobApplication[];
   onUpdateStatus: (id: string, status: JobApplication['status']) => void;
   onDelete: (id: string) => void;
+  onEdit: (job: JobApplication) => void;
+  onJobClick?: (job: JobApplication) => void;
 }
 
 const statusConfig = {
@@ -34,7 +44,17 @@ const statusConfig = {
   offered: { color: 'bg-green-500', label: 'Offered', textColor: 'text-green-600' },
 };
 
-export function KanbanBoard({ jobs, onUpdateStatus, onDelete }: KanbanBoardProps) {
+// Generate Gmail URL from message ID or thread ID
+const getGmailUrl = (messageId: string, threadId?: string) => {
+  // Try thread ID first if available, as it's more reliable for Gmail URLs
+  if (threadId) {
+    return `https://mail.google.com/mail/u/0/#inbox/${threadId}`;
+  }
+  // Fallback to message ID
+  return `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
+};
+
+export function KanbanBoard({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick }: KanbanBoardProps) {
   const columns = Object.keys(statusConfig) as JobApplication['status'][];
 
   const getJobsForStatus = (status: JobApplication['status']) => {
@@ -42,7 +62,10 @@ export function KanbanBoard({ jobs, onUpdateStatus, onDelete }: KanbanBoardProps
   };
 
   const JobCard = ({ job }: { job: JobApplication }) => (
-    <Card className="mb-3 hover:shadow-md transition-shadow cursor-pointer group">
+    <Card 
+      className="mb-3 hover:shadow-md transition-shadow cursor-pointer group"
+      onClick={() => onJobClick?.(job)}
+    >
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center space-x-2">
@@ -50,7 +73,15 @@ export function KanbanBoard({ jobs, onUpdateStatus, onDelete }: KanbanBoardProps
               <Building2 className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <h4 className="font-medium text-sm">{job.companyName}</h4>
+              <div className="flex items-center gap-2">
+                <h4 className="font-medium text-sm">{job.companyName}</h4>
+                {job.autoImported && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Mail className="h-3 w-3 mr-1" />
+                    Auto
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
           
@@ -61,6 +92,10 @@ export function KanbanBoard({ jobs, onUpdateStatus, onDelete }: KanbanBoardProps
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(job)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
               {Object.entries(statusConfig)
                 .filter(([status]) => status !== job.status)
                 .map(([status, config]) => (
@@ -108,6 +143,30 @@ export function KanbanBoard({ jobs, onUpdateStatus, onDelete }: KanbanBoardProps
           >
             View Job <ExternalLink className="h-3 w-3 ml-1" />
           </a>
+        )}
+
+        {job.emailMessageId && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href={getGmailUrl(job.emailMessageId, job.emailThreadId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-xs text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  View Email <Mail className="h-3 w-3 ml-1" />
+                </a>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  <span className="text-sm">Open original email in Gmail</span>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </CardContent>
     </Card>

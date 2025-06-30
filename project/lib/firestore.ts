@@ -20,21 +20,18 @@ export const getJobApplications = async (userId: string): Promise<JobApplication
   try {
     console.log('Fetching jobs for userId:', userId);
     
-    // First try a simple query without orderBy to see if that works
     const q = query(
       collection(db, COLLECTION_NAME),
       where('userId', '==', userId)
+      // orderBy('dateApplied', 'desc')  // DISABLED until Firestore index is created
     );
     const querySnapshot = await getDocs(q);
     console.log('Query snapshot size:', querySnapshot.size);
     
-    let jobs = querySnapshot.docs.map(doc => ({
+    const jobs = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as JobApplication[];
-    
-    // Sort manually on the client side for now
-    jobs = jobs.sort((a, b) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
     
     console.log('Fetched jobs:', jobs);
     return jobs;
@@ -65,11 +62,13 @@ export const addJobApplication = async (job: Omit<JobApplication, 'id'>, userId:
 // Update a job application
 export const updateJobApplication = async (id: string, updates: Partial<JobApplication>, userId: string): Promise<void> => {
   try {
+    console.log('Updating job:', id, 'Updates:', updates, 'User:', userId);
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, {
       ...updates,
       updatedAt: Timestamp.now(),
     });
+    console.log('Job updated successfully');
   } catch (error) {
     console.error('Error updating job application:', error);
     throw error;
@@ -107,17 +106,15 @@ export const getJobApplicationsByStatus = async (status: JobApplication['status'
     const q = query(
       collection(db, COLLECTION_NAME),
       where('userId', '==', userId),
-      where('status', '==', status)
+      where('status', '==', status),
+      orderBy('dateApplied', 'desc')
     );
     const querySnapshot = await getDocs(q);
     
-    let jobs = querySnapshot.docs.map(doc => ({
+    const jobs = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as JobApplication[];
-    
-    // Sort manually on the client side
-    jobs = jobs.sort((a, b) => new Date(b.dateApplied).getTime() - new Date(a.dateApplied).getTime());
     
     return jobs;
   } catch (error) {
