@@ -114,6 +114,11 @@ export function KanbanBoard({
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="font-medium text-sm">{job.companyName}</h4>
+                {job.isNew && (
+                  <Badge variant="default" className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold animate-pulse">
+                    NEW
+                  </Badge>
+                )}
                 {job.autoImported && (
                   <Badge variant="secondary" className="text-xs">
                     <Mail className="h-3 w-3 mr-1" />
@@ -164,7 +169,12 @@ export function KanbanBoard({
           </DropdownMenu>
         </div>
         
-        <h3 className="font-semibold text-sm mb-2 line-clamp-2">{job.jobTitle}</h3>
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="font-semibold text-sm line-clamp-2">{job.jobTitle}</h3>
+          {job.isNew && (
+            <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse flex-shrink-0"></div>
+          )}
+        </div>
         
         <div className="flex items-center text-xs text-muted-foreground mb-2">
           <Calendar className="h-3 w-3 mr-1" />

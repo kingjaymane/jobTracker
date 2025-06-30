@@ -149,6 +149,11 @@ export function JobTable({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{job.companyName}</span>
+                      {job.isNew && (
+                        <Badge variant="default" className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold animate-pulse">
+                          NEW
+                        </Badge>
+                      )}
                       {job.autoImported && (
                         <Badge variant="secondary" className="text-xs">
                           <Mail className="h-3 w-3 mr-1" />
@@ -196,7 +201,12 @@ export function JobTable({
               </TableCell>
               
               <TableCell>
-                <div className="font-medium">{job.jobTitle}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-medium">{job.jobTitle}</div>
+                  {job.isNew && (
+                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  )}
+                </div>
               </TableCell>
               
               <TableCell>

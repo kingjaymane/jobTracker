@@ -289,7 +289,8 @@ export function EmailIntegrationProvider({ children }: EmailIntegrationProviderP
               emailSubject: jobApp.emailSubject,
               emailFrom: jobApp.emailFrom,
               autoImported: true,
-              confidence: jobApp.confidence
+              confidence: jobApp.confidence,
+              isNew: true // Mark as new for visual indicator
             }, user.uid);
             
             newJobsAdded++;

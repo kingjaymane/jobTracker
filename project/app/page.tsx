@@ -46,6 +46,7 @@ export interface JobApplication {
   confidence?: number;
   extractedInfo?: any;
   source?: string;
+  isNew?: boolean; // Flag for newly imported jobs
 }
 
 export interface FilterState {
@@ -198,6 +199,46 @@ export default function Home() {
     // Clear selection when filters change to avoid selecting jobs that are no longer visible
     setSelectedJobIds(new Set());
   }, [filters]);
+
+  // Auto-clear "new" flags after 24 hours
+  useEffect(() => {
+    const clearOldNewFlags = async () => {
+      if (!user) return;
+      
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      const jobsToUpdate = jobs.filter(job => 
+        job.isNew && 
+        job.autoImported && 
+        new Date(job.dateApplied) < oneDayAgo
+      );
+      
+      if (jobsToUpdate.length > 0) {
+        try {
+          // Update jobs in batches
+          for (const job of jobsToUpdate) {
+            await updateJobApplication(job.id, { isNew: false }, user.uid);
+          }
+          
+          // Update local state
+          setJobs(jobs.map(job => 
+            jobsToUpdate.some(updateJob => updateJob.id === job.id) 
+              ? { ...job, isNew: false }
+              : job
+          ));
+        } catch (error) {
+          console.error('Error auto-clearing new flags:', error);
+        }
+      }
+    };
+    
+    // Run on component mount and then every hour
+    clearOldNewFlags();
+    const interval = setInterval(clearOldNewFlags, 60 * 60 * 1000); // 1 hour
+    
+    return () => clearInterval(interval);
+  }, [jobs, user]);
 
   // Refresh jobs function that can be called externally
   const refreshJobs = async () => {
@@ -371,6 +412,36 @@ export default function Home() {
     setSelectedJobIds(new Set());
   };
 
+  // Mark all new jobs as viewed
+  const markAllNewAsViewed = async () => {
+    if (!user) return;
+    
+    const newJobs = jobs.filter(job => job.isNew);
+    if (newJobs.length === 0) return;
+    
+    try {
+      // Update jobs in batches
+      for (const job of newJobs) {
+        await updateJobApplication(job.id, { isNew: false }, user.uid);
+      }
+      
+      // Update local state
+      setJobs(jobs.map(job => ({ ...job, isNew: false })));
+      
+      toast({
+        title: "Jobs marked as viewed",
+        description: `Marked ${newJobs.length} job${newJobs.length === 1 ? '' : 's'} as viewed.`,
+      });
+    } catch (error) {
+      console.error('Error marking jobs as viewed:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark jobs as viewed. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const editJob = async (id: string, updates: Partial<JobApplication>) => {
     if (!user) return;
     
@@ -390,9 +461,20 @@ export default function Home() {
     setIsEditModalOpen(true);
   };
 
-  const handleViewJobDetails = (job: JobApplication) => {
+  const handleViewJobDetails = async (job: JobApplication) => {
     setSelectedJob(job);
     setIsDetailsModalOpen(true);
+    
+    // Mark job as viewed if it was new
+    if (job.isNew && user) {
+      try {
+        await updateJobApplication(job.id, { isNew: false }, user.uid);
+        // Update local state
+        setJobs(jobs.map(j => j.id === job.id ? { ...j, isNew: false } : j));
+      } catch (error) {
+        console.error('Error marking job as viewed:', error);
+      }
+    }
   };
 
   const handleCloseDetailsModal = () => {
@@ -486,6 +568,19 @@ export default function Home() {
                             </Button>
                           )}
                         </div>
+                        
+                        {/* Mark All New as Viewed */}
+                        {!isSelectionMode && jobs.some(job => job.isNew) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={markAllNewAsViewed}
+                            className="flex items-center gap-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+                          >
+                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                            Mark All New as Viewed ({jobs.filter(job => job.isNew).length})
+                          </Button>
+                        )}
                       </div>
 
                       {/* Bulk Actions Toolbar */}
