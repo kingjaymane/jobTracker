@@ -42,6 +42,13 @@ function isJobBoardNotification(content: string, from: string, subject: string):
     'apply to these jobs',
     'one-click apply',
     
+    // BeeBee notifications (spam job board)
+    'bebee job alert',
+    'bebee job notification',
+    'new jobs on bebee',
+    'bebee professional network',
+    'bebee opportunities',
+    
     // Generic notification patterns
     'newsletter',
     'weekly update',
@@ -65,9 +72,6 @@ function isJobBoardNotification(content: string, from: string, subject: string):
   ];
 
   const senderPatterns = [
-    'noreply',
-    'no-reply',
-    'donotreply',
     'notifications@',
     'alerts@',
     'digest@',
@@ -78,14 +82,36 @@ function isJobBoardNotification(content: string, from: string, subject: string):
     'jobs@linkedin',
     'alerts@glassdoor',
     'notification@',
-    'automated@'
+    'automated@',
+    'bebee',
+    '@bebee.com',
+    'jobs@bebee'
   ];
 
   const contentLower = content.toLowerCase();
   const fromLower = from.toLowerCase();
   const subjectLower = subject.toLowerCase();
 
-  // Check if it's from a notification sender
+  // Don't filter out application confirmations even if they're from noreply
+  const isApplicationConfirmation = (
+    contentLower.includes('thank you for applying') ||
+    contentLower.includes('thanks for applying') ||
+    contentLower.includes('application received') ||
+    contentLower.includes('we have received your application') ||
+    contentLower.includes('your application has been received') ||
+    contentLower.includes('thank you for your interest') && (
+      contentLower.includes('application') || 
+      contentLower.includes('position') || 
+      contentLower.includes('role')
+    )
+  );
+
+  if (isApplicationConfirmation) {
+    console.log(`Not filtering application confirmation: ${subject.substring(0, 50)}`);
+    return false;
+  }
+
+  // Check if it's from a notification sender (but be more specific)
   const isNotificationSender = senderPatterns.some(pattern => fromLower.includes(pattern));
   
   // Check if content matches notification patterns
@@ -108,6 +134,7 @@ function isJobBoardNotification(content: string, from: string, subject: string):
 function isJobRelatedEmail(content: string, from: string, subject: string): boolean {
   // First check if it's a job board notification we should filter out
   if (isJobBoardNotification(content, from, subject)) {
+    console.log(`Filtered out as job board notification: ${subject.substring(0, 50)}`);
     return false;
   }
 
@@ -117,12 +144,47 @@ function isJobRelatedEmail(content: string, from: string, subject: string): bool
     'candidate', 'resume', 'cv', 'screening', 'phone screen'
   ];
 
+  // Enhanced patterns for application confirmations - expanded based on user feedback
+  const applicationConfirmationPatterns = [
+    'thank you for applying',
+    'thanks for applying',
+    'thanks for your application',
+    'application received',
+    'we have received your application',
+    'thanks for your interest',
+    'thank you for your interest',
+    'application confirmation',
+    'successfully submitted',
+    'application status',
+    'received your resume',
+    'thank you for your submission',
+    'we received your application',
+    'your application has been received',
+    'application has been received',
+    'we will review your application',
+    'we will review it right away',
+    'we will review as soon as possible',
+    // Additional patterns based on user's missed emails
+    'thanks for applying to',
+    'thank you for your interest in',
+    'application received -',
+    'thanks for your application -',
+    'we have received your',
+    'thank you for submitting',
+    'your application for',
+    'application for the',
+    'received your application for',
+    'thank you for your application to',
+    'thanks for your application to'
+  ];
+
   const commonJobSites = [
     'linkedin', 'indeed', 'glassdoor', 'monster', 'ziprecruiter', 'dice',
-    'stackoverflow', 'github', 'angel.co', 'wellfound', 'hired'
+    'stackoverflow', 'github', 'angel.co', 'wellfound', 'hired', 'bebee'
   ];
 
   const hasJobKeywords = jobKeywords.some(keyword => content.includes(keyword));
+  const hasApplicationConfirmation = applicationConfirmationPatterns.some(pattern => content.includes(pattern));
   const isFromJobSite = commonJobSites.some(site => from.toLowerCase().includes(site));
   
   // Additional check for recruiter emails
@@ -134,7 +196,13 @@ function isJobRelatedEmail(content: string, from: string, subject: string): bool
     content.includes(indicator) || from.toLowerCase().includes(indicator)
   );
   
-  return hasJobKeywords || isFromJobSite || isFromRecruiter;
+  const isJobRelated = hasJobKeywords || hasApplicationConfirmation || isFromJobSite || isFromRecruiter;
+  
+  if (!isJobRelated) {
+    console.log(`Not job related - Subject: ${subject.substring(0, 50)}, Keywords: ${hasJobKeywords}, Confirmation: ${hasApplicationConfirmation}`);
+  }
+  
+  return isJobRelated;
 }
 
 function extractCompany(from: string, body: string = '', subject: string = ''): string | null {
@@ -149,7 +217,7 @@ function extractCompany(from: string, body: string = '', subject: string = ''): 
     const excludedDomains = [
       'gmail', 'yahoo', 'outlook', 'hotmail', 'aol', 'icloud',
       'linkedin', 'indeed', 'glassdoor', 'monster', 'ziprecruiter', 'dice',
-      'stackoverflow', 'github', 'angel', 'wellfound', 'hired',
+      'stackoverflow', 'github', 'angel', 'wellfound', 'hired', 'bebee',
       'workday', 'greenhouse', 'lever', 'jobvite', 'smartrecruiters',
       'brassring', 'icims', 'kronos', 'successfactors', 'taleo',
       'bamboohr', 'namely', 'zenefits', 'gusto', 'adp',
@@ -171,8 +239,14 @@ function extractCompany(from: string, body: string = '', subject: string = ''): 
     }
   }
 
-  // Try to extract from email signature or body
+  // Try to extract from email signature or body with enhanced patterns
   const companyPatterns = [
+    // "Thanks for applying to [Company]" - specific pattern from user's emails
+    /thanks for applying to\s+([A-Z][a-zA-Z\s&.]+?)[\.,\s]/i,
+    
+    // "Thank you for your interest in [Company]" - specific pattern from user's emails
+    /thank you for your interest in\s+([A-Z][a-zA-Z\s&.]+?)[\.,\s]/i,
+    
     // "From [Company Name]" patterns
     /from\s+([A-Z][a-zA-Z\s&.]+?)(?:\s+team|\s+hiring|\s+hr|\s+recruiting|,|\.|$)/i,
     
@@ -184,6 +258,9 @@ function extractCompany(from: string, body: string = '', subject: string = ''): 
     
     // "We are [Company Name]" patterns
     /(?:we are|i am with|i work at|i represent)\s+([A-Z][a-zA-Z\s&.]+?)(?:\s|,|\.|$)/i,
+    
+    // "The [Company] Team" patterns
+    /the\s+([A-Z][a-zA-Z\s&.]+?)\s+(?:team|talent\s+team)/i,
     
     // Email signature patterns
     /^([A-Z][a-zA-Z\s&.]{2,30})$/m
@@ -364,15 +441,20 @@ export async function POST(request: NextRequest) {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
     console.log('Searching for emails...');
-    // Search for job-related emails
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const query = `after:${thirtyDaysAgo.toISOString().split('T')[0]} (job OR application OR interview OR offer OR position OR hiring OR recruiter)`;
+    // Search for job-related emails (expanded date range and even broader search)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 180); // Extended to 6 months
+    
+    // Most comprehensive search query to catch ALL possible job application emails
+    const query = `after:${sixMonthsAgo.toISOString().split('T')[0]} (job OR application OR interview OR offer OR position OR hiring OR recruiter OR "received your application" OR "thank you for applying" OR "thanks for applying" OR "application confirmation" OR "thanks for your interest" OR "thank you for your interest" OR "we have received" OR "application received" OR "thank you for your application" OR "application has been received" OR "your application has been received" OR "thanks for your application" OR paypal OR kpmg OR microsoft OR google OR amazon OR meta OR facebook OR apple OR netflix OR salesforce OR oracle OR adobe OR nvidia OR tesla OR uber OR airbnb OR spotify OR twitter OR linkedin OR indeed OR glassdoor)`;
+
+    console.log('Gmail search query:', query);
+    console.log('Date range: from', sixMonthsAgo.toISOString().split('T')[0], 'to today');
 
     const response = await gmail.users.messages.list({
       userId: 'me',
       q: query,
-      maxResults: 50
+      maxResults: 300 // Significantly increased to catch more emails
     });
 
     console.log(`Found ${response.data.messages?.length || 0} messages`);
@@ -414,6 +496,40 @@ export async function POST(request: NextRequest) {
           }
 
           const content = `${subject} ${body}`.toLowerCase();
+          
+          // Enhanced debug logging for ALL emails found
+          console.log(`Processing email ${message.id}:`, {
+            subject: subject.substring(0, 80),
+            from: from.substring(0, 50),
+            date,
+            hasJobKeywords: ['job', 'application', 'position', 'role', 'interview', 'hiring', 'recruiter', 'thank you for applying', 'received your application'].some(keyword => content.includes(keyword))
+          });
+          
+          // Debug logging for specific companies and patterns the user mentioned
+          if (subject.toLowerCase().includes('paypal') || 
+              subject.toLowerCase().includes('kpmg') || 
+              subject.toLowerCase().includes('microsoft') || 
+              subject.toLowerCase().includes('google') ||
+              subject.toLowerCase().includes('thanks for applying') ||
+              subject.toLowerCase().includes('thank you for your interest') ||
+              subject.toLowerCase().includes('application received') ||
+              content.includes('received your application') ||
+              content.includes('thank you for applying') ||
+              content.includes('thanks for your interest') ||
+              content.includes('application confirmation') ||
+              from.includes('paypal.com') ||
+              from.includes('kpmg.com') ||
+              from.includes('microsoft.com') ||
+              from.includes('google.com')) {
+            console.log(`🔍 DEBUG - Found potential missed email:`, {
+              messageId: message.id,
+              subject,
+              from,
+              contentPreview: content.substring(0, 200),
+              isJobBoardNotification: isJobBoardNotification(content, from, subject),
+              isJobRelated: isJobRelatedEmail(content, from, subject)
+            });
+          }
           
           if (isJobRelatedEmail(content, from, subject)) {
             const company = extractCompany(from, body, subject);
@@ -466,7 +582,15 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            if (confidence >= 0.5) { // Lowered threshold since we have better filtering
+            if (confidence >= 0.2) { // Further lowered threshold to catch more emails
+              console.log(`✅ Adding job application:`, {
+                company: company || 'Unknown Company',
+                title: jobTitle || 'Unknown Position', 
+                confidence: confidence.toFixed(2),
+                subject: subject.substring(0, 60),
+                from: from.substring(0, 40),
+                status
+              });
               jobApplications.push({
                 messageId: message.id,
                 threadId: messageData.threadId, // Also store thread ID for Gmail URLs
@@ -477,6 +601,14 @@ export async function POST(request: NextRequest) {
                 date: new Date(date),
                 emailSubject: subject,
                 emailFrom: from
+              });
+            } else {
+              console.log(`❌ Skipping email (low confidence ${confidence.toFixed(2)}):`, {
+                subject: subject.substring(0, 60),
+                from: from.substring(0, 40),
+                company,
+                jobTitle,
+                reason: confidence < 0.2 ? 'Below threshold' : 'Other'
               });
             }
           }
