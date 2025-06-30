@@ -10,6 +10,17 @@ import {
   DialogTitle,
   DialogDescription 
 } from '@/components/ui/dialog';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,15 +37,19 @@ import {
   Tag,
   Globe,
   Edit,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { deleteJobApplication } from '@/lib/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 interface JobDetailsModalProps {
   job: JobApplication | null;
   isOpen: boolean;
   onClose: () => void;
   onEdit: (job: JobApplication) => void;
+  onDelete?: () => void; // Callback to refresh job list after deletion
 }
 
 interface EmailContent {
@@ -78,8 +93,9 @@ const formatEmailBody = (body: string) => {
   return cleanBody;
 };
 
-export function JobDetailsModal({ job, isOpen, onClose, onEdit }: JobDetailsModalProps) {
+export function JobDetailsModal({ job, isOpen, onClose, onEdit, onDelete }: JobDetailsModalProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [emailContent, setEmailContent] = useState<EmailContent>({
     subject: '',
     from: '',
@@ -87,6 +103,7 @@ export function JobDetailsModal({ job, isOpen, onClose, onEdit }: JobDetailsModa
     body: '',
     loading: false
   });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch email content when modal opens for auto-imported jobs
   useEffect(() => {
@@ -147,6 +164,31 @@ export function JobDetailsModal({ job, isOpen, onClose, onEdit }: JobDetailsModa
       });
     }
   }, [isOpen, job?.emailMessageId, job?.autoImported, job?.emailSubject, job?.emailFrom, user?.uid]);
+
+  // Handle job deletion
+  const handleDelete = async () => {
+    if (!job?.id || !user?.uid) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteJobApplication(job.id, user.uid);
+      toast({
+        title: "Job deleted",
+        description: `${job.jobTitle} at ${job.companyName} has been deleted.`,
+      });
+      onClose();
+      onDelete?.(); // Refresh job list
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete the job. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
 
 
@@ -351,14 +393,52 @@ export function JobDetailsModal({ job, isOpen, onClose, onEdit }: JobDetailsModa
         </ScrollArea>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-          <Button onClick={() => onEdit(job)} className="flex items-center gap-2">
-            <Edit className="h-4 w-4" />
-            Edit Job
-          </Button>
+        <div className="flex items-center justify-between pt-4 border-t">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="destructive" 
+                size="sm"
+                disabled={isDeleting}
+                className="flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                {isDeleting ? 'Deleting...' : 'Delete Job'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Job Application</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete the job application for <strong>{job.jobTitle}</strong> at <strong>{job.companyName}</strong>? 
+                  This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+            <Button onClick={() => onEdit(job)} className="flex items-center gap-2">
+              <Edit className="h-4 w-4" />
+              Edit Job
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -4,6 +4,8 @@ import { JobApplication } from '@/app/page';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +36,10 @@ interface KanbanBoardProps {
   onDelete: (id: string) => void;
   onEdit: (job: JobApplication) => void;
   onJobClick?: (job: JobApplication) => void;
+  isSelectionMode?: boolean;
+  selectedJobIds?: Set<string>;
+  onJobSelect?: (jobId: string, selected: boolean) => void;
+  onSelectAll?: (selected: boolean) => void;
 }
 
 const statusConfig = {
@@ -54,7 +60,17 @@ const getGmailUrl = (messageId: string, threadId?: string) => {
   return `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
 };
 
-export function KanbanBoard({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick }: KanbanBoardProps) {
+export function KanbanBoard({ 
+  jobs, 
+  onUpdateStatus, 
+  onDelete, 
+  onEdit, 
+  onJobClick,
+  isSelectionMode = false,
+  selectedJobIds = new Set(),
+  onJobSelect,
+  onSelectAll
+}: KanbanBoardProps) {
   const columns = Object.keys(statusConfig) as JobApplication['status'][];
 
   const getJobsForStatus = (status: JobApplication['status']) => {
@@ -63,10 +79,33 @@ export function KanbanBoard({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick
 
   const JobCard = ({ job }: { job: JobApplication }) => (
     <Card 
-      className="mb-3 hover:shadow-md transition-shadow cursor-pointer group"
-      onClick={() => onJobClick?.(job)}
+      className={cn(
+        "mb-3 hover:shadow-md transition-shadow cursor-pointer group",
+        isSelectionMode && selectedJobIds.has(job.id) && "ring-2 ring-primary bg-primary/5"
+      )}
+      onClick={(e) => {
+        // Prevent card click when clicking on checkbox or action buttons
+        if (isSelectionMode && e.target instanceof HTMLElement) {
+          if (e.target.closest('[data-checkbox]') || e.target.closest('[data-action-button]')) {
+            return;
+          }
+        }
+        onJobClick?.(job);
+      }}
     >
       <CardContent className="p-4">
+        {/* Selection Checkbox */}
+        {isSelectionMode && (
+          <div className="mb-3 flex justify-end" onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              data-checkbox
+              checked={selectedJobIds.has(job.id)}
+              onCheckedChange={(checked) => onJobSelect?.(job.id, !!checked)}
+              aria-label={`Select ${job.companyName} - ${job.jobTitle}`}
+            />
+          </div>
+        )}
+        
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
@@ -87,7 +126,13 @@ export function KanbanBoard({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                data-action-button
+                onClick={(e) => e.stopPropagation()}
+              >
                 <MoreHorizontal className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
@@ -187,9 +232,23 @@ export function KanbanBoard({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick
                     <div className={`w-3 h-3 rounded-full ${config.color}`} />
                     <span>{config.label}</span>
                   </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {jobsInColumn.length}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {isSelectionMode && jobsInColumn.length > 0 && (
+                      <Checkbox
+                        checked={jobsInColumn.every(job => selectedJobIds.has(job.id))}
+                        onCheckedChange={(checked) => {
+                          jobsInColumn.forEach(job => {
+                            onJobSelect?.(job.id, !!checked);
+                          });
+                        }}
+                        aria-label={`Select all jobs in ${config.label}`}
+                        className="mr-1"
+                      />
+                    )}
+                    <Badge variant="secondary" className="text-xs">
+                      {jobsInColumn.length}
+                    </Badge>
+                  </div>
                 </CardTitle>
               </CardHeader>
             </Card>

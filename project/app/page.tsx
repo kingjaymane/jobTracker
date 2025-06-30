@@ -12,9 +12,13 @@ import { FilterBar } from '@/components/filter-bar';
 import { JobDashboard } from '@/components/job-dashboard';
 import { EmailIntegrationDashboard } from '@/components/email-integration-dashboard';
 import { JobCleanupTool } from '@/components/job-cleanup-tool';
+import { BulkActionsToolbar } from '@/components/bulk-actions-toolbar';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { CheckSquare, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import {
   getJobApplications,
   addJobApplication,
@@ -132,6 +136,7 @@ const sampleJobs: JobApplication[] = [
 
 export default function Home() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [jobs, setJobs] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -149,6 +154,11 @@ export default function Home() {
     sortBy: 'dateApplied',
     sortOrder: 'desc',
   });
+
+  // Bulk selection state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Function to reload jobs from Firestore (can be called after email scan)
   const loadJobs = useCallback(async () => {
@@ -176,6 +186,18 @@ export default function Home() {
   useEffect(() => {
     loadJobs();
   }, [loadJobs]);
+
+  // Clear selection when view mode changes or filters change
+  useEffect(() => {
+    // Clear selection when switching away from supported views  
+    // (Currently both table and kanban support selection mode)
+    setSelectedJobIds(new Set());
+  }, [viewMode]);
+
+  useEffect(() => {
+    // Clear selection when filters change to avoid selecting jobs that are no longer visible
+    setSelectedJobIds(new Set());
+  }, [filters]);
 
   // Refresh jobs function that can be called externally
   const refreshJobs = async () => {
@@ -286,6 +308,69 @@ export default function Home() {
     }
   };
 
+  // Bulk selection handlers
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedJobIds(new Set());
+  };
+
+  const handleJobSelect = (jobId: string, selected: boolean) => {
+    const newSelected = new Set(selectedJobIds);
+    if (selected) {
+      newSelected.add(jobId);
+    } else {
+      newSelected.delete(jobId);
+    }
+    setSelectedJobIds(newSelected);
+  };
+
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      const allJobIds = new Set(filteredAndSortedJobs.map(job => job.id));
+      setSelectedJobIds(allJobIds);
+    } else {
+      setSelectedJobIds(new Set());
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!user || selectedJobIds.size === 0) return;
+    
+    setIsBulkDeleting(true);
+    try {
+      // Delete all selected jobs
+      const deletePromises = Array.from(selectedJobIds).map(id => 
+        deleteJobApplication(id, user.uid)
+      );
+      await Promise.all(deletePromises);
+      
+      // Update local state
+      setJobs(jobs.filter(job => !selectedJobIds.has(job.id)));
+      setSelectedJobIds(new Set());
+      setIsSelectionMode(false);
+      
+      // Show success toast
+      toast({
+        title: "Jobs deleted",
+        description: `Successfully deleted ${selectedJobIds.size} job${selectedJobIds.size === 1 ? '' : 's'}.`,
+      });
+    } catch (error) {
+      console.error('Error bulk deleting jobs:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete selected jobs. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const cancelSelection = () => {
+    setIsSelectionMode(false);
+    setSelectedJobIds(new Set());
+  };
+
   const editJob = async (id: string, updates: Partial<JobApplication>) => {
     if (!user) return;
     
@@ -376,6 +461,43 @@ export default function Home() {
                     <div className="space-y-6">
                       <JobDashboard jobs={jobs} />
                       
+                      {/* Bulk Selection Controls */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {!isSelectionMode ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={toggleSelectionMode}
+                              className="flex items-center gap-2"
+                            >
+                              <CheckSquare className="h-4 w-4" />
+                              Select Jobs
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={cancelSelection}
+                              className="flex items-center gap-2"
+                            >
+                              <X className="h-4 w-4" />
+                              Cancel Selection
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bulk Actions Toolbar */}
+                      {isSelectionMode && (
+                        <BulkActionsToolbar
+                          selectedCount={selectedJobIds.size}
+                          onBulkDelete={handleBulkDelete}
+                          onCancel={cancelSelection}
+                          isDeleting={isBulkDeleting}
+                        />
+                      )}
+                      
                       {viewMode === 'table' ? (
                         <JobTable 
                           jobs={filteredAndSortedJobs}
@@ -383,6 +505,10 @@ export default function Home() {
                           onDelete={deleteJob}
                           onEdit={handleEditJob}
                           onJobClick={handleViewJobDetails}
+                          isSelectionMode={isSelectionMode}
+                          selectedJobIds={selectedJobIds}
+                          onJobSelect={handleJobSelect}
+                          onSelectAll={handleSelectAll}
                         />
                       ) : (
                         <KanbanBoard 
@@ -391,6 +517,10 @@ export default function Home() {
                           onDelete={deleteJob}
                           onEdit={handleEditJob}
                           onJobClick={handleViewJobDetails}
+                          isSelectionMode={isSelectionMode}
+                          selectedJobIds={selectedJobIds}
+                          onJobSelect={handleJobSelect}
+                          onSelectAll={handleSelectAll}
                         />
                       )}
                     </div>
@@ -454,6 +584,7 @@ export default function Home() {
           isOpen={isDetailsModalOpen}
           onClose={handleCloseDetailsModal}
           onEdit={handleEditFromDetails}
+          onDelete={loadJobs}
         />
       </div>
     </ProtectedRoute>

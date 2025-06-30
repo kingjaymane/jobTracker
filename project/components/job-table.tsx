@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { JobApplication } from '@/app/page';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +45,10 @@ interface JobTableProps {
   onDelete: (id: string) => void;
   onEdit: (job: JobApplication) => void;
   onJobClick?: (job: JobApplication) => void;
+  isSelectionMode?: boolean;
+  selectedJobIds?: Set<string>;
+  onJobSelect?: (jobId: string, selected: boolean) => void;
+  onSelectAll?: (selected: boolean) => void;
 }
 
 const statusConfig = {
@@ -63,7 +69,17 @@ const getGmailUrl = (messageId: string, threadId?: string) => {
   return `https://mail.google.com/mail/u/0/#inbox/${messageId}`;
 };
 
-export function JobTable({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick }: JobTableProps) {
+export function JobTable({ 
+  jobs, 
+  onUpdateStatus, 
+  onDelete, 
+  onEdit, 
+  onJobClick,
+  isSelectionMode = false,
+  selectedJobIds = new Set(),
+  onJobSelect,
+  onSelectAll
+}: JobTableProps) {
   const [expandedNotes, setExpandedNotes] = useState<string | null>(null);
 
   const StatusBadge = ({ status }: { status: JobApplication['status'] }) => (
@@ -80,6 +96,15 @@ export function JobTable({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick }:
       <Table>
         <TableHeader>
           <TableRow>
+            {isSelectionMode && (
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={selectedJobIds.size === jobs.length && jobs.length > 0}
+                  onCheckedChange={onSelectAll}
+                  aria-label="Select all jobs"
+                />
+              </TableHead>
+            )}
             <TableHead>Company</TableHead>
             <TableHead>Position</TableHead>
             <TableHead>Status</TableHead>
@@ -92,9 +117,30 @@ export function JobTable({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick }:
           {jobs.map((job) => (
             <TableRow 
               key={job.id} 
-              className="group hover:bg-muted/50 transition-colors cursor-pointer"
-              onClick={() => onJobClick?.(job)}
+              className={cn(
+                "group hover:bg-muted/50 transition-colors cursor-pointer",
+                isSelectionMode && selectedJobIds.has(job.id) && "bg-primary/5 border-l-4 border-l-primary"
+              )}
+              onClick={(e) => {
+                // Prevent row click when clicking on checkbox or action buttons
+                if (isSelectionMode && e.target instanceof HTMLElement) {
+                  if (e.target.closest('[data-checkbox]') || e.target.closest('[data-action-button]')) {
+                    return;
+                  }
+                }
+                onJobClick?.(job);
+              }}
             >
+              {isSelectionMode && (
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    data-checkbox
+                    checked={selectedJobIds.has(job.id)}
+                    onCheckedChange={(checked) => onJobSelect?.(job.id, !!checked)}
+                    aria-label={`Select ${job.companyName} - ${job.jobTitle}`}
+                  />
+                </TableCell>
+              )}
               <TableCell>
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
@@ -205,19 +251,27 @@ export function JobTable({ jobs, onUpdateStatus, onDelete, onEdit, onJobClick }:
               </TableCell>
               
               <TableCell>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" data-action-button>
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     className="h-8 w-8"
-                    onClick={() => onEdit(job)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(job);
+                    }}
                     title="Edit job"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
