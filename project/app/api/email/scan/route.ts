@@ -454,7 +454,7 @@ export async function POST(request: NextRequest) {
     const response = await gmail.users.messages.list({
       userId: 'me',
       q: query,
-      maxResults: 300 // Significantly increased to catch more emails
+      maxResults: 50 // Significantly increased to catch more emails
     });
 
     console.log(`Found ${response.data.messages?.length || 0} messages`);

@@ -1,0 +1,12 @@
+// Firebase Storage Security Rules
+// Copy these rules to Firebase Console → Storage → Rules
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Very permissive rules for debugging uploads
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

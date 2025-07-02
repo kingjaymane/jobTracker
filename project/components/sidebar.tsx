@@ -9,7 +9,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Briefcase,
-  Mail
+  Mail,
+  BarChart3,
+  Brain,
+  Folder
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -25,6 +28,9 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, onAddJob, activeView = 'dashboard', onViewChange }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'job-matching', label: 'AI Job Matching', icon: Brain },
+    { id: 'documents', label: 'Documents', icon: Folder },
     { id: 'email', label: 'Email Integration', icon: Mail },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -32,24 +38,24 @@ export function Sidebar({ collapsed, onToggle, onAddJob, activeView = 'dashboard
 
   return (
     <div className={cn(
-      "fixed left-0 top-0 h-screen bg-card border-r border-border transition-all duration-300 z-50",
+      "fixed left-0 top-0 h-screen bg-card/95 backdrop-blur-sm border-r border-border transition-all duration-300 z-50 shadow-lg",
       collapsed ? "w-16" : "w-64"
     )}>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border bg-background/50">
           <div className="flex items-center justify-between">
             {!collapsed && (
               <div className="flex items-center space-x-2">
                 <Briefcase className="h-6 w-6 text-primary" />
-                <span className="font-semibold text-lg">JobTracker</span>
+                <span className="font-semibold text-lg text-foreground">JobTracker</span>
               </div>
             )}
             <Button
               variant="ghost"
               size="icon"
               onClick={onToggle}
-              className="h-8 w-8"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent/50"
             >
               {collapsed ? (
                 <ChevronRight className="h-4 w-4" />
@@ -79,13 +85,14 @@ export function Sidebar({ collapsed, onToggle, onAddJob, activeView = 'dashboard
               key={item.id}
               variant={activeView === item.id ? "secondary" : "ghost"}
               className={cn(
-                "w-full justify-start gap-2 h-10",
-                collapsed && "px-2"
+                "w-full justify-start gap-2 h-10 text-foreground hover:text-foreground hover:bg-accent/70",
+                collapsed && "px-2",
+                activeView === item.id && "bg-primary/10 text-primary hover:text-primary"
               )}
               onClick={() => onViewChange?.(item.id)}
             >
               <item.icon className="h-4 w-4" />
-              {!collapsed && item.label}
+              {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
             </Button>
           ))}
         </nav>

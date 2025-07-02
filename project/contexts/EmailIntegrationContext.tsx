@@ -73,16 +73,10 @@ export function EmailIntegrationProvider({ children }: EmailIntegrationProviderP
   }, [user, loadEmailSettings]);
 
   const connectEmail = async () => {
-    console.log('=== Email Integration: Starting Connection ===');
-    console.log('User ID:', user?.uid);
-    
     try {
-      console.log('Getting auth URL...');
       const authUrl = await clientEmailService.getAuthUrl();
-      console.log('Auth URL received:', authUrl);
       
       // Open popup for OAuth
-      console.log('Opening OAuth popup...');
       const popup = window.open(
         authUrl,
         'gmail-auth',
@@ -99,30 +93,18 @@ export function EmailIntegrationProvider({ children }: EmailIntegrationProviderP
         return;
       }
 
-      console.log('Popup opened successfully, setting up message listener...');
-
       // Listen for the OAuth callback
       const handleMessage = async (event: MessageEvent) => {
-        console.log('=== Message Received from Popup ===');
-        console.log('Event origin:', event.origin);
-        console.log('Window origin:', window.location.origin);
-        console.log('Message data:', event.data);
-        console.log('Message type:', event.data?.type);
-        
         if (event.origin !== window.location.origin) {
-          console.log('Message ignored - wrong origin:', event.origin, 'expected:', window.location.origin);
           return;
         }
         
         if (event.data.type === 'GMAIL_AUTH_SUCCESS') {
-          console.log('=== Processing Gmail Auth Success ===');
           const { code } = event.data;
-          console.log('Authorization code received:', code ? `${code.substring(0, 10)}...` : 'missing');
           
           popup?.close();
           
           try {
-            console.log('Processing authorization code...');
             const credentials = await clientEmailService.getTokenFromCode(code);
             console.log('Token exchange successful:', {
               access_token: credentials.access_token ? 'present' : 'missing',
@@ -136,14 +118,12 @@ export function EmailIntegrationProvider({ children }: EmailIntegrationProviderP
             );
             
             setIsEmailConnected(true);
-            console.log('Email connection state updated to connected');
             
             toast({
               title: "Email Connected",
               description: "Gmail integration setup successfully!",
             });
           } catch (error) {
-            console.error('=== Token Exchange Error ===');
             console.error('Error exchanging code for tokens:', error);
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
             toast({
@@ -153,7 +133,6 @@ export function EmailIntegrationProvider({ children }: EmailIntegrationProviderP
             });
           }
         } else if (event.data.type === 'GMAIL_AUTH_ERROR') {
-          console.log('=== Processing Gmail Auth Error ===');
           const { error } = event.data;
           popup?.close();
           console.error('OAuth error from popup:', error);
@@ -175,20 +154,11 @@ export function EmailIntegrationProvider({ children }: EmailIntegrationProviderP
         }
       };
 
-      console.log('Adding message event listener...');
       window.addEventListener('message', handleMessage);
-      console.log('Message listener added successfully');
-      
-      // Test the message listener with a dummy message after a short delay
-      setTimeout(() => {
-        console.log('Testing message listener with dummy message...');
-        window.postMessage({ type: 'TEST', source: 'EmailIntegrationContext' }, window.location.origin);
-      }, 1000);
       
       // Cleanup listener when popup closes
       const checkClosed = setInterval(() => {
         if (popup?.closed) {
-          console.log('Popup closed, cleaning up message listener...');
           window.removeEventListener('message', handleMessage);
           clearInterval(checkClosed);
         }

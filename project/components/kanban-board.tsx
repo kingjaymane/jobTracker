@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { JobApplication } from '@/app/page';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +21,10 @@ import {
   Calendar,
   StickyNote,
   Edit,
-  Mail
+  Mail,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { 
   Tooltip,
@@ -71,10 +75,24 @@ export function KanbanBoard({
   onJobSelect,
   onSelectAll
 }: KanbanBoardProps) {
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  
   const columns = Object.keys(statusConfig) as JobApplication['status'][];
 
   const getJobsForStatus = (status: JobApplication['status']) => {
-    return jobs.filter(job => job.status === status);
+    const filteredJobs = jobs.filter(job => job.status === status);
+    
+    // Sort jobs by date - newest first (most recent additions at top)
+    return filteredJobs.sort((a, b) => {
+      const dateA = new Date(a.dateApplied || 0);
+      const dateB = new Date(b.dateApplied || 0);
+      
+      if (sortOrder === 'newest') {
+        return dateB.getTime() - dateA.getTime(); // Newest first
+      } else {
+        return dateA.getTime() - dateB.getTime(); // Oldest first
+      }
+    });
   };
 
   const JobCard = ({ job }: { job: JobApplication }) => (
@@ -228,8 +246,35 @@ export function KanbanBoard({
   );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-      {columns.map((status) => {
+    <div className="space-y-4">
+      {/* Sort Controls */}
+      <div className="flex items-center justify-end">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Sort by date:</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+            className="flex items-center gap-2"
+          >
+            {sortOrder === 'newest' ? (
+              <>
+                <ArrowDown className="h-4 w-4" />
+                Newest First
+              </>
+            ) : (
+              <>
+                <ArrowUp className="h-4 w-4" />
+                Oldest First
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+      
+      {/* Kanban Board */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {columns.map((status) => {
         const jobsInColumn = getJobsForStatus(status);
         const config = statusConfig[status];
         
@@ -277,6 +322,7 @@ export function KanbanBoard({
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

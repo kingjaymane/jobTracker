@@ -4,21 +4,22 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to read and write their own job applications
+    // Allow authenticated users full access (temporary for debugging)
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Specific rules (these will work alongside the broad rule above)
     match /jobApplications/{jobId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow read, write, create, update, delete: if request.auth != null;
     }
     
-    // Optional: Allow users to read and write their own user profile
+    match /documents/{documentId} {
+      allow read, write, create, update, delete: if request.auth != null;
+    }
+    
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Allow users to read and write any subcollections under their user document
-    // This covers any future collections
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write, create, update, delete: if request.auth != null;
     }
   }
 }

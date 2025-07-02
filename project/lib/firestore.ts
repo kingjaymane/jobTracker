@@ -18,22 +18,18 @@ const COLLECTION_NAME = 'jobApplications';
 // Get all job applications for the current user
 export const getJobApplications = async (userId: string): Promise<JobApplication[]> => {
   try {
-    console.log('Fetching jobs for userId:', userId);
-    
     const q = query(
       collection(db, COLLECTION_NAME),
       where('userId', '==', userId)
       // orderBy('dateApplied', 'desc')  // DISABLED until Firestore index is created
     );
     const querySnapshot = await getDocs(q);
-    console.log('Query snapshot size:', querySnapshot.size);
     
     const jobs = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as JobApplication[];
     
-    console.log('Fetched jobs:', jobs);
     return jobs;
   } catch (error) {
     console.error('Error fetching job applications:', error);
@@ -44,14 +40,12 @@ export const getJobApplications = async (userId: string): Promise<JobApplication
 // Add a new job application
 export const addJobApplication = async (job: Omit<JobApplication, 'id'>, userId: string): Promise<string> => {
   try {
-    console.log('Adding job for userId:', userId, 'Job data:', job);
     const docRef = await addDoc(collection(db, COLLECTION_NAME), {
       ...job,
       userId,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
-    console.log('Added job with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error adding job application:', error);
@@ -62,13 +56,11 @@ export const addJobApplication = async (job: Omit<JobApplication, 'id'>, userId:
 // Update a job application
 export const updateJobApplication = async (id: string, updates: Partial<JobApplication>, userId: string): Promise<void> => {
   try {
-    console.log('Updating job:', id, 'Updates:', updates, 'User:', userId);
     const docRef = doc(db, COLLECTION_NAME, id);
     await updateDoc(docRef, {
       ...updates,
       updatedAt: Timestamp.now(),
     });
-    console.log('Job updated successfully');
   } catch (error) {
     console.error('Error updating job application:', error);
     throw error;

@@ -13,6 +13,9 @@ import { JobDashboard } from '@/components/job-dashboard';
 import { EmailIntegrationDashboard } from '@/components/email-integration-dashboard';
 import { JobCleanupTool } from '@/components/job-cleanup-tool';
 import { BulkActionsToolbar } from '@/components/bulk-actions-toolbar';
+import { AnalyticsDashboard } from '@/components/analytics-dashboard';
+import { JobMatching } from '@/components/job-matching';
+import { DocumentManagement } from '@/components/document-management';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -170,9 +173,7 @@ export default function Home() {
 
     try {
       setLoading(true);
-      console.log('Loading jobs for user:', user.uid);
       const jobsData = await getJobApplications(user.uid);
-      console.log('Loaded jobs:', jobsData);
       setJobs(jobsData);
     } catch (error) {
       console.error('Failed to load jobs:', error);
@@ -242,7 +243,6 @@ export default function Home() {
 
   // Refresh jobs function that can be called externally
   const refreshJobs = async () => {
-    console.log('Refreshing jobs after email scan...');
     await loadJobs();
   };
 
@@ -656,6 +656,24 @@ export default function Home() {
                     <p className="text-muted-foreground">Additional settings panels coming soon!</p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {currentView === 'analytics' && (
+              <div className="p-6">
+                <AnalyticsDashboard jobs={jobs} />
+              </div>
+            )}
+
+            {currentView === 'job-matching' && (
+              <div className="p-6">
+                <JobMatching jobs={jobs} onAddJob={(job) => addJob(job)} />
+              </div>
+            )}
+
+            {currentView === 'documents' && (
+              <div className="p-6">
+                <DocumentManagement jobs={jobs} />
               </div>
             )}
           </main>
